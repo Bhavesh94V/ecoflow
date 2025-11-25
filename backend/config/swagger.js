@@ -41,7 +41,7 @@ const options = {
       { name: "IoT", description: "IoT device endpoints" },
     ],
   },
-  apis: ["./routes/*.js"],
+  apis: ["./controllers/*.js", "./routes/*.js"],
 }
 
 const swaggerSpec = swaggerJsdoc(options)

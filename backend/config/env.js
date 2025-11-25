@@ -7,11 +7,6 @@ const path = require("path")
 
 require("dotenv").config({ path: path.join(__dirname, "..", ".env") })
 
-// Debug: Log env loading (remove in production)
-console.log("[ENV] Loading environment variables...")
-console.log("[ENV] ADMIN_EMAIL loaded:", process.env.ADMIN_EMAIL ? "YES" : "NO")
-console.log("[ENV] ADMIN_PASSWORD loaded:", process.env.ADMIN_PASSWORD ? "YES" : "NO")
-
 const config = {
   // Server
   PORT: process.env.PORT || 5000,
@@ -27,16 +22,12 @@ const config = {
   ADMIN_EMAIL: process.env.ADMIN_EMAIL || "admin@ecosmart.com",
   ADMIN_PASSWORD: process.env.ADMIN_PASSWORD || "EcoSmart@Admin#2025!Secure",
 
-  // CORS - frontend port 8080
-  CORS_ORIGIN: process.env.CORS_ORIGIN || "http://localhost:8080",
+  // CORS - support both Vite (5173) and other ports
+  CORS_ORIGIN: process.env.CORS_ORIGIN || "http://localhost:5173",
 
   // WebSocket
   WS_PORT: process.env.WS_PORT || 5001,
 }
-
-// Debug: Log final config (remove in production)
-console.log("[ENV] Final ADMIN_EMAIL:", config.ADMIN_EMAIL)
-console.log("[ENV] CORS_ORIGIN:", config.CORS_ORIGIN)
 
 // Validate required variables in production
 if (config.NODE_ENV === "production") {

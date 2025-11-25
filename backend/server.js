@@ -37,10 +37,12 @@ const { runAlertCron, runInactiveBinCron } = require("./crons/alertCron")
 const app = express()
 const server = http.createServer(app)
 
+const corsOrigins = CORS_ORIGIN.split(",").map((origin) => origin.trim())
+
 // Initialize Socket.IO
 const io = new Server(server, {
   cors: {
-    origin: CORS_ORIGIN,
+    origin: corsOrigins,
     methods: ["GET", "POST"],
   },
 })
@@ -50,7 +52,12 @@ app.set("io", io)
 
 // Security Middlewares
 app.use(helmet())
-app.use(cors({ origin: CORS_ORIGIN, credentials: true }))
+app.use(
+  cors({
+    origin: corsOrigins,
+    credentials: true,
+  }),
+)
 
 // Request Parsing
 app.use(express.json())
@@ -64,36 +71,33 @@ app.use("/api/docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec))
 
 // Health Check
 app.get("/api/health", (req, res) => {
-  res.json({ status: "ok", timestamp: new Date().toISOString() })
+  res.json({ status: "ok", timestamp: new Date().toISOString(), version: "1.0.0" })
 })
 
-app.get("/api/debug/routes", (req, res) => {
-  const routes = []
-  app._router.stack.forEach((middleware) => {
-    if (middleware.route) {
-      routes.push({
-        path: middleware.route.path,
-        methods: Object.keys(middleware.route.methods),
-      })
-    } else if (middleware.name === "router") {
-      middleware.handle.stack.forEach((handler) => {
-        if (handler.route) {
-          const path = middleware.regexp.source
-            .replace("^\\/api\\/auth", "/api/auth")
-            .replace("^\\/api\\/citizen", "/api/citizen")
-            .replace("^\\/api\\/admin\\/bins", "/api/admin/bins")
-            .replace("\\/?(?=\\/|$)", "")
-            .replace(/\\\//g, "/")
-          routes.push({
-            path: path + handler.route.path,
-            methods: Object.keys(handler.route.methods),
-          })
-        }
-      })
-    }
+// Debug Routes (development only)
+if (process.env.NODE_ENV !== "production") {
+  app.get("/api/debug/routes", (req, res) => {
+    const routes = []
+    app._router.stack.forEach((middleware) => {
+      if (middleware.route) {
+        routes.push({
+          path: middleware.route.path,
+          methods: Object.keys(middleware.route.methods),
+        })
+      } else if (middleware.name === "router") {
+        middleware.handle.stack.forEach((handler) => {
+          if (handler.route) {
+            routes.push({
+              path: handler.route.path,
+              methods: Object.keys(handler.route.methods),
+            })
+          }
+        })
+      }
+    })
+    res.json({ routes })
   })
-  res.json({ routes })
-})
+}
 
 // API Routes
 app.use("/api/auth", authRoutes)
@@ -104,13 +108,6 @@ app.use("/api/admin/complaints", adminComplaintRoutes)
 app.use("/api/admin/routes", adminRouteRoutes)
 app.use("/api/iot", iotRoutes)
 
-logger.info("Auth routes registered:")
-authRoutes.stack.forEach((r) => {
-  if (r.route) {
-    logger.info(`  ${Object.keys(r.route.methods).join(",")} /api/auth${r.route.path}`)
-  }
-})
-
 // Error Handling
 app.use(notFound)
 app.use(errorHandler)
@@ -119,12 +116,12 @@ app.use(errorHandler)
 io.on("connection", (socket) => {
   logger.info(`Client connected: ${socket.id}`)
 
-  socket.on("subscribe:bins", (data) => {
+  socket.on("subscribe:bins", () => {
     socket.join("bin-updates")
     logger.info(`Client ${socket.id} subscribed to bin updates`)
   })
 
-  socket.on("subscribe:alerts", (data) => {
+  socket.on("subscribe:alerts", () => {
     socket.join("alerts")
     logger.info(`Client ${socket.id} subscribed to alerts`)
   })
@@ -145,6 +142,7 @@ cron.schedule("*/15 * * * *", async () => {
 server.listen(PORT, () => {
   logger.info(`🚀 EcoSmart Server running on port ${PORT}`)
   logger.info(`📚 API Documentation: http://localhost:${PORT}/api/docs`)
+  logger.info(`🔗 Health Check: http://localhost:${PORT}/api/health`)
 })
 
 module.exports = { app, server, io }
