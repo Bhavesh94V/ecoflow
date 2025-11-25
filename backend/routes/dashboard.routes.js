@@ -1,12 +1,12 @@
 const express = require("express")
 const router = express.Router()
 const dashboardController = require("../controllers/dashboard.controller")
-const { authenticate } = require("../middlewares/auth")
+const { authenticate, isAdmin, isAuthenticatedUser } = require("../middlewares/auth")
 
-// Citizen routes
-router.get("/citizen-stats", authenticate, dashboardController.getCitizenStats)
+// router.get("/citizen-stats", authenticate, isAuthenticatedUser, dashboardController.getCitizenStats)
+// router.get("/admin-stats", authenticate, isAdmin, dashboardController.getAdminStats)
 
-// Admin routes (would need admin auth in production)
-router.get("/admin-stats", dashboardController.getAdminStats)
+router.get("/citizen-stats", authenticate, isAuthenticatedUser, dashboardController.getCitizenStats.bind(dashboardController))
+router.get("/admin-stats", authenticate, isAdmin, dashboardController.getAdminStats.bind(dashboardController))
 
 module.exports = router

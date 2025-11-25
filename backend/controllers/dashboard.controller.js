@@ -1,65 +1,65 @@
 /**
  * Dashboard Controller
- * Handles dashboard statistics and data
+ * Handles dashboard statistics and data with real-time updates
  */
 
-const binService = require("../services/bin.service")
-const complaintService = require("../services/complaint.service")
-const pickupService = require("../services/pickup.service")
 const prisma = require("../config/database")
 const { formatResponse } = require("../utils/helpers")
 const { AppError } = require("../utils/appError")
 
 class DashboardController {
   /**
-   * Get citizen dashboard statistics
+   * Get citizen dashboard statistics (Fixed to match Prisma schema)
    */
   async getCitizenStats(req, res, next) {
     try {
       const userId = req.user.id
 
-      // Get user's reward points
       const user = await prisma.user.findUnique({
         where: { id: userId },
-        select: { reward_points: true },
+        select: {
+          reward_points: true,
+          id: true,
+          name: true,
+          email: true,
+        },
       })
 
       if (!user) {
         throw new AppError("User not found", 404)
       }
 
-      // Get completed pickups
-      const completedPickups = await prisma.pickupRequest.count({
+      const completedPickups = await prisma.pickup.count({
         where: {
-          citizen_id: userId,
+          user_id: userId,
           status: "completed",
         },
       })
 
-      // Get active complaints
       const activeComplaints = await prisma.complaint.count({
         where: {
-          citizen_id: userId,
+          user_id: userId,
           status: { not: "resolved" },
         },
       })
 
-      // Calculate recycling rate (completed pickups / total requests)
-      const totalPickups = await prisma.pickupRequest.count({
-        where: { citizen_id: userId },
+      const totalPickups = await prisma.pickup.count({
+        where: { user_id: userId },
       })
 
-      const recyclingRate = totalPickups > 0 ? (completedPickups / totalPickups) * 100 : 0
+      const recyclingRate = totalPickups > 0 ? Math.round((completedPickups / totalPickups) * 100) : 0
 
       res.json(
         formatResponse(
           {
             rewardPoints: user.reward_points || 0,
             pickupsCompleted: completedPickups,
-            recyclingRate: Math.round(recyclingRate),
+            recyclingRate: recyclingRate,
             activeComplaints,
+            userName: user.name,
+            userEmail: user.email,
           },
-          "Citizen statistics retrieved",
+          "Citizen statistics retrieved successfully",
         ),
       )
     } catch (error) {
@@ -68,70 +68,66 @@ class DashboardController {
   }
 
   /**
-   * Get admin dashboard statistics
+   * Get admin dashboard statistics (Fixed with correct Prisma schema)
    */
   async getAdminStats(req, res, next) {
     try {
-      // Get total bins
       const totalBins = await prisma.bin.count()
 
-      // Get total collectors
-      const totalCollectors = await prisma.collector.count()
-
-      // Get total complaints
-      const totalComplaints = await prisma.complaint.count()
-
-      // Get pending complaints
-      const pendingComplaints = await prisma.complaint.count({
-        where: { status: "pending" },
+      const overflowBins = await prisma.bin.count({
+        where: {
+          fill_level: { gte: 80 },
+        },
       })
 
-      // Get active collectors
+      const totalCollectors = await prisma.collector.count()
+
       const activeCollectors = await prisma.collector.count({
         where: { status: "active" },
       })
 
-      // Get pending alerts
-      const pendingAlerts = await prisma.alert.count({
-        where: { is_read: false },
+      const totalComplaints = await prisma.complaint.count()
+
+      const pendingComplaints = await prisma.complaint.count({
+        where: { status: "pending" },
       })
 
-      // Get waste collection data (last 7 days)
-      const today = new Date()
-      const lastWeek = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000)
+      const highPriorityComplaints = await prisma.complaint.count({
+        where: { priority: "high" },
+      })
 
-      const wasteData = await prisma.pickupRequest.groupBy({
-        by: ["created_at"],
+      const pendingPickups = await prisma.pickup.count({
+        where: { status: { in: ["requested", "assigned"] } },
+      })
+
+      const today = new Date()
+      today.setHours(0, 0, 0, 0)
+
+      const completedPickupsToday = await prisma.pickup.count({
         where: {
-          created_at: { gte: lastWeek },
+          created_at: { gte: today },
           status: "completed",
         },
-        _count: true,
       })
 
-      const wasteCollectionData = []
-      for (let i = 6; i >= 0; i--) {
-        const date = new Date(today)
-        date.setDate(date.getDate() - i)
-        const dateStr = date.toISOString().split("T")[0]
-        const dayName = date.toLocaleDateString("en-US", { weekday: "short" })
+      const binsWithFillLevel = await prisma.bin.findMany({
+        select: { fill_level: true },
+      })
 
-        const count = wasteData.find((d) => d.created_at.toISOString().split("T")[0] === dateStr)?._count || 0
+      const averageFillLevel =
+        binsWithFillLevel.length > 0
+          ? Math.round(binsWithFillLevel.reduce((sum, bin) => sum + bin.fill_level, 0) / binsWithFillLevel.length)
+          : 0
 
-        wasteCollectionData.push({
-          day: dayName,
-          waste: count,
-          predicted: count + Math.floor(Math.random() * 5),
-        })
-      }
+      const wasteCollectionData = await this.getWasteCollectionData()
 
-      // Area-wise data
+
       const areaWiseData = await prisma.bin.groupBy({
         by: ["area"],
         _count: true,
       })
 
-      // Waste type data
+      // Static waste type data
       const wasteTypeData = [
         { name: "Organic", value: 35, color: "hsl(var(--chart-1))" },
         { name: "Plastic", value: 25, color: "hsl(var(--chart-2))" },
@@ -140,37 +136,66 @@ class DashboardController {
         { name: "Glass", value: 5, color: "hsl(var(--chart-5))" },
       ]
 
-      // Get completed pickups for today
-      const completedPickups = await prisma.pickupRequest.count({
-        where: {
-          created_at: { gte: today },
-          status: "completed",
-        },
-      })
-
       res.json(
         formatResponse(
           {
             totalBins,
+            overflowBins,
             totalCollectors,
+            activeCollectors,
             totalComplaints,
             pendingComplaints,
-            activeCollectors,
-            pendingAlerts,
-            todayCollection: completedPickups || 0,
+            highPriorityComplaints,
+            pendingPickups,
+            todayCollection: completedPickupsToday,
+            averageFillLevel,
             wasteCollectionData,
             areaWiseData: areaWiseData.map((d) => ({
               area: d.area,
-              waste: d._count,
+              count: d._count,
             })),
             wasteTypeData,
           },
-          "Admin statistics retrieved",
+          "Admin statistics retrieved successfully",
         ),
       )
     } catch (error) {
       next(error)
     }
+  }
+
+  /**
+   * Helper method to get waste collection data for past 7 days
+   */
+  async getWasteCollectionData() {
+    const data = []
+    const today = new Date()
+
+    for (let i = 6; i >= 0; i--) {
+      const date = new Date(today)
+      date.setDate(date.getDate() - i)
+      const startOfDay = new Date(date)
+      startOfDay.setHours(0, 0, 0, 0)
+      const endOfDay = new Date(date)
+      endOfDay.setHours(23, 59, 59, 999)
+
+      const dayName = date.toLocaleDateString("en-US", { weekday: "short" })
+
+      const count = await prisma.pickup.count({
+        where: {
+          created_at: { gte: startOfDay, lte: endOfDay },
+          status: "completed",
+        },
+      })
+
+      data.push({
+        day: dayName,
+        waste: count,
+        predicted: Math.max(count, Math.floor(Math.random() * 10) + count),
+      })
+    }
+
+    return data
   }
 }
 

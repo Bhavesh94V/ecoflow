@@ -46,6 +46,8 @@ export default function AdminDashboard() {
   const [alerts, setAlerts] = useState<Alert[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [isRefreshing, setIsRefreshing] = useState(false)
+  const safeAlerts = Array.isArray(alerts) ? alerts : [];
+
 
   useEffect(() => {
     if (!authLoading && (!isAuthenticated || user?.role !== "admin")) {
@@ -278,7 +280,8 @@ export default function AdminDashboard() {
                 View All
               </Button>
             </div>
-            <div className="space-y-4">
+            {/* <div className="space-y-4">
+
               {alerts.length === 0 ? (
                 <p className="text-muted-foreground text-center py-4">No recent alerts</p>
               ) : (
@@ -289,10 +292,10 @@ export default function AdminDashboard() {
                   >
                     <div
                       className={`w-10 h-10 rounded-lg ${alert.severity === "high"
-                          ? "bg-danger/10"
-                          : alert.severity === "medium"
-                            ? "bg-warning/10"
-                            : "bg-info/10"
+                        ? "bg-danger/10"
+                        : alert.severity === "medium"
+                          ? "bg-warning/10"
+                          : "bg-info/10"
                         } flex items-center justify-center`}
                     >
                       {alert.severity === "high" ? (
@@ -324,7 +327,59 @@ export default function AdminDashboard() {
                   </div>
                 ))
               )}
+            </div> */}
+            <div className="space-y-4">
+              {safeAlerts.length === 0 ? (
+                <p className="text-muted-foreground text-center py-4">No recent alerts</p>
+              ) : (
+                safeAlerts.map((alert) => (
+                  <div
+                    key={alert.id}
+                    className="flex items-center gap-4 p-4 rounded-lg border hover:border-primary transition-colors"
+                  >
+                    <div
+                      className={`w-10 h-10 rounded-lg ${alert.severity === "high"
+                          ? "bg-danger/10"
+                          : alert.severity === "medium"
+                            ? "bg-warning/10"
+                            : "bg-info/10"
+                        } flex items-center justify-center`}
+                    >
+                      {alert.severity === "high" ? (
+                        <AlertTriangle className="w-5 h-5 text-danger" />
+                      ) : alert.severity === "medium" ? (
+                        <Clock className="w-5 h-5 text-warning" />
+                      ) : (
+                        <CheckCircle className="w-5 h-5 text-info" />
+                      )}
+                    </div>
+                    <div className="flex-1">
+                      <h4 className="font-semibold">{alert.binLocation || alert.binId}</h4>
+                      <p className="text-sm text-muted-foreground capitalize">
+                        {alert.type?.replace("_", " ")}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm text-muted-foreground">
+                        {new Date(alert.createdAt).toLocaleTimeString()}
+                      </p>
+                      <Badge
+                        variant={
+                          alert.severity === "high"
+                            ? "destructive"
+                            : alert.severity === "medium"
+                              ? "secondary"
+                              : "default"
+                        }
+                      >
+                        {alert.severity}
+                      </Badge>
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
+
           </Card>
         </div>
 

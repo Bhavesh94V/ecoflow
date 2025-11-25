@@ -68,4 +68,9 @@ const isCitizen = (req, res, next) => {
   next()
 }
 
-module.exports = { authenticate, isAdmin, isCitizen }
+const isAuthenticatedUser = (req, res, next) => {
+  // Any authenticated user can proceed
+  next()
+}
+
+module.exports = { authenticate, isAdmin, isCitizen, isAuthenticatedUser }
