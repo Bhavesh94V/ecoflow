@@ -26,7 +26,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [token, setToken] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
 
-  // Check for existing token on mount
   useEffect(() => {
     const initAuth = async () => {
       const savedToken = localStorage.getItem("ecosmart_token")
@@ -38,10 +37,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setUser(JSON.parse(savedUser))
 
           // Verify token is still valid
-          const response = await authApi.getMe()
-          if (response.success) {
-            setUser(response.data)
-            localStorage.setItem("ecosmart_user", JSON.stringify(response.data))
+          try {
+            const response = await authApi.getMe()
+            if (response.success) {
+              setUser(response.data)
+              localStorage.setItem("ecosmart_user", JSON.stringify(response.data))
+            }
+          } catch (error) {
+            // Token invalid, clear storage
+            localStorage.removeItem("ecosmart_token")
+            localStorage.removeItem("ecosmart_user")
+            setToken(null)
+            setUser(null)
           }
         } catch {
           // Token invalid, clear storage
@@ -71,6 +78,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       return { success: false, message: response.message || "Login failed" }
     } catch (error: any) {
+      console.error("[v0] Login error:", error)
       return { success: false, message: error.message || "Login failed" }
     }
   }
@@ -95,6 +103,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       return { success: false, message: response.message || "Registration failed" }
     } catch (error: any) {
+      console.error("[v0] Register error:", error)
       return { success: false, message: error.message || "Registration failed" }
     }
   }

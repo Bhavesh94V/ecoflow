@@ -3,12 +3,13 @@ const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api"
 
 // Types
 export interface User {
-  id: string
+  id: string | number
   name: string
   email: string
   phone?: string
   address?: string
   role: "citizen" | "admin"
+  reward_points?: number
 }
 
 export interface AuthResponse {
@@ -131,7 +132,6 @@ const getToken = (): string | null => {
   return localStorage.getItem("ecosmart_token")
 }
 
-// Helper function to make API requests
 const apiRequest = async (endpoint: string, options: RequestInit = {}): Promise<any> => {
   const token = getToken()
 
@@ -141,23 +141,30 @@ const apiRequest = async (endpoint: string, options: RequestInit = {}): Promise<
     ...options.headers,
   }
 
-  const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-    ...options,
-    headers,
-  })
+  try {
+    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+      ...options,
+      headers,
+    })
 
-  const data = await response.json()
+    const data = await response.json()
 
-  if (!response.ok) {
-    throw new Error(data.message || "An error occurred")
+    if (!response.ok) {
+      const error = new Error(data.message || `HTTP ${response.status}`)
+      ;(error as any).status = response.status
+      ;(error as any).data = data
+      throw error
+    }
+
+    return data
+  } catch (error: any) {
+    console.error("[v0] API Error:", error)
+    throw error
   }
-
-  return data
 }
 
 // Auth API
 export const authApi = {
-  // Citizen Register
   register: async (userData: {
     name: string
     email: string
@@ -171,7 +178,6 @@ export const authApi = {
     })
   },
 
-  // Citizen Login
   citizenLogin: async (email: string, password: string): Promise<AuthResponse> => {
     return apiRequest("/auth/citizen/login", {
       method: "POST",
@@ -179,7 +185,6 @@ export const authApi = {
     })
   },
 
-  // Admin Login
   adminLogin: async (email: string, password: string): Promise<AuthResponse> => {
     return apiRequest("/auth/admin/login", {
       method: "POST",
@@ -503,7 +508,7 @@ export const alertsApi = {
     if (params?.page) queryParams.append("page", params.page.toString())
     if (params?.limit) queryParams.append("limit", params.limit.toString())
 
-    return apiRequest(`/alerts?${queryParams.toString()}`)
+    return apiRequest(`/admin/alerts?${queryParams.toString()}`)
   },
 
   markAsRead: async (id: string): Promise<{ success: boolean; message: string }> => {
@@ -522,7 +527,7 @@ export const alertsApi = {
 // Dashboard API
 export const dashboardApi = {
   getStats: async (): Promise<{ success: boolean; data: DashboardStats }> => {
-    return apiRequest("/dashboard/stats")
+    return apiRequest("/dashboard/admin-stats")
   },
 
   getCitizenStats: async (): Promise<{

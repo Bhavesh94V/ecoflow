@@ -1,5 +1,6 @@
 /**
  * Authentication Service
+ * Handles login, registration, and JWT token generation
  */
 
 const bcrypt = require("bcryptjs")
@@ -12,13 +13,12 @@ class AuthService {
   async registerCitizen(data) {
     const { name, email, password, phone, address } = data
 
-    // Prevent registering with admin email
-    if (email === ADMIN_EMAIL) {
+    if (email.toLowerCase() === ADMIN_EMAIL.toLowerCase()) {
       throw new AppError("This email is reserved", 400)
     }
 
     // Check if user exists
-    const existingUser = await prisma.user.findUnique({ where: { email } })
+    const existingUser = await prisma.user.findUnique({ where: { email: email.toLowerCase() } })
     if (existingUser) {
       throw new AppError("Email already registered", 409)
     }
@@ -30,10 +30,10 @@ class AuthService {
     const user = await prisma.user.create({
       data: {
         name,
-        email,
+        email: email.toLowerCase(),
         password: hashedPassword,
-        phone,
-        address,
+        phone: phone || null,
+        address: address || null,
         role: "citizen",
       },
       select: {
@@ -53,15 +53,16 @@ class AuthService {
   }
 
   async citizenLogin(email, password) {
-    // Block admin from citizen login
-    if (email === ADMIN_EMAIL) {
+    const normalizedEmail = email.toLowerCase()
+
+    if (normalizedEmail === ADMIN_EMAIL.toLowerCase()) {
       throw new AppError("Please use admin login", 403)
     }
 
     // Find user (citizen)
-    const user = await prisma.user.findUnique({ where: { email } })
+    const user = await prisma.user.findUnique({ where: { email: normalizedEmail } })
     if (!user) {
-      throw new AppError("Invalid credentials", 401)
+      throw new AppError("Invalid email or password", 401)
     }
 
     if (user.role !== "citizen") {
@@ -71,7 +72,7 @@ class AuthService {
     // Check password
     const isValidPassword = await bcrypt.compare(password, user.password)
     if (!isValidPassword) {
-      throw new AppError("Invalid credentials", 401)
+      throw new AppError("Invalid email or password", 401)
     }
 
     // Generate token
@@ -90,30 +91,23 @@ class AuthService {
   }
 
   async adminLogin(email, password) {
-    console.log("[AUTH] Admin login attempt")
-    console.log("[AUTH] Input email:", email)
-    console.log("[AUTH] Expected email:", ADMIN_EMAIL)
-    console.log("[AUTH] Email match:", email === ADMIN_EMAIL)
+    const normalizedInputEmail = email.toLowerCase().trim()
+    const normalizedExpectedEmail = ADMIN_EMAIL.toLowerCase().trim()
 
-    const trimmedInputPassword = password?.trim()
-    const trimmedExpectedPassword = ADMIN_PASSWORD?.trim()
+    console.log("[v0] Admin login attempt - Email:", normalizedInputEmail)
 
-    console.log("[AUTH] Input password length:", trimmedInputPassword?.length)
-    console.log("[AUTH] Expected password length:", trimmedExpectedPassword?.length)
-    console.log("[AUTH] Password match:", trimmedInputPassword === trimmedExpectedPassword)
-
-    // Check for fixed admin credentials
-    if (email?.trim() !== ADMIN_EMAIL?.trim()) {
-      console.log("[AUTH] Email mismatch - rejecting")
+    if (normalizedInputEmail !== normalizedExpectedEmail) {
+      console.log("[v0] Admin login failed - Email mismatch")
       throw new AppError("Invalid admin credentials", 401)
     }
 
-    if (trimmedInputPassword !== trimmedExpectedPassword) {
-      console.log("[AUTH] Password mismatch - rejecting")
+    if (password !== ADMIN_PASSWORD) {
+      console.log("[v0] Admin login failed - Password mismatch")
+      console.log("[v0] Received:", password, "Expected:", ADMIN_PASSWORD)
       throw new AppError("Invalid admin credentials", 401)
     }
 
-    console.log("[AUTH] Admin credentials valid - generating token")
+    console.log("[v0] Admin login successful")
 
     const adminUser = {
       id: 0,
@@ -129,23 +123,24 @@ class AuthService {
     return { user: adminUser, token }
   }
 
-  // Universal login (auto-detects admin or citizen)
   async login(email, password) {
+    const normalizedEmail = email.toLowerCase()
+
     // Check for fixed admin credentials
-    if (email === ADMIN_EMAIL) {
+    if (normalizedEmail === ADMIN_EMAIL.toLowerCase()) {
       return this.adminLogin(email, password)
     }
 
     // Find user (citizen)
-    const user = await prisma.user.findUnique({ where: { email } })
+    const user = await prisma.user.findUnique({ where: { email: normalizedEmail } })
     if (!user) {
-      throw new AppError("Invalid credentials", 401)
+      throw new AppError("Invalid email or password", 401)
     }
 
     // Check password
     const isValidPassword = await bcrypt.compare(password, user.password)
     if (!isValidPassword) {
-      throw new AppError("Invalid credentials", 401)
+      throw new AppError("Invalid email or password", 401)
     }
 
     // Generate token
@@ -163,7 +158,6 @@ class AuthService {
     }
   }
 
-  // Get profile
   async getProfile(userId, isFixedAdmin = false) {
     if (isFixedAdmin) {
       return {

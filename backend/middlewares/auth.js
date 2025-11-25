@@ -19,7 +19,6 @@ const authenticate = async (req, res, next) => {
     const token = authHeader.split(" ")[1]
     const decoded = jwt.verify(token, JWT_SECRET)
 
-    // For admin, check if it's a fixed admin
     if (decoded.role === "admin" && decoded.isFixedAdmin) {
       req.user = {
         id: 0,
@@ -31,7 +30,6 @@ const authenticate = async (req, res, next) => {
       return next()
     }
 
-    // For citizens, fetch from database
     const user = await prisma.user.findUnique({
       where: { id: decoded.id },
       select: { id: true, email: true, role: true, name: true },

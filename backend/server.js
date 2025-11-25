@@ -24,11 +24,13 @@ const { notFound } = require("./middlewares/notFound")
 // Routes
 const authRoutes = require("./routes/auth.routes")
 const citizenRoutes = require("./routes/citizen.routes")
+const dashboardRoutes = require("./routes/dashboard.routes") // Added dashboard routes
 const adminBinRoutes = require("./routes/admin.bin.routes")
 const adminCollectorRoutes = require("./routes/admin.collector.routes")
 const adminComplaintRoutes = require("./routes/admin.complaint.routes")
 const adminRouteRoutes = require("./routes/admin.route.routes")
 const iotRoutes = require("./routes/iot.routes")
+const alertsRoutes = require("./routes/alerts.routes") // Added alerts routes
 
 // Cron Jobs
 const { runAlertCron, runInactiveBinCron } = require("./crons/alertCron")
@@ -102,10 +104,13 @@ if (process.env.NODE_ENV !== "production") {
 // API Routes
 app.use("/api/auth", authRoutes)
 app.use("/api/citizen", citizenRoutes)
+app.use("/api/bins", citizenRoutes) // Added direct /api/bins route for client compatibility
+app.use("/api/dashboard", dashboardRoutes) // Added dashboard routes
 app.use("/api/admin/bins", adminBinRoutes)
 app.use("/api/admin/collectors", adminCollectorRoutes)
 app.use("/api/admin/complaints", adminComplaintRoutes)
 app.use("/api/admin/routes", adminRouteRoutes)
+app.use("/api/admin/alerts", alertsRoutes) // Added alerts routes
 app.use("/api/iot", iotRoutes)
 
 // Error Handling

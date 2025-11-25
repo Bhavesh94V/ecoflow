@@ -32,9 +32,11 @@ class CitizenController {
    */
   async getNearbyBins(req, res, next) {
     try {
-      const { latitude = 28.6139, longitude = 77.209 } = req.query
+      const { latitude = 28.6139, longitude = 77.209, limit } = req.query
       const bins = await binService.getNearbyBins(Number.parseFloat(latitude), Number.parseFloat(longitude))
-      res.json(formatResponse(bins, "Nearby bins retrieved"))
+
+      const result = limit ? bins.slice(0, Number.parseInt(limit)) : bins
+      res.json(formatResponse(result, "Nearby bins retrieved"))
     } catch (error) {
       next(error)
     }
