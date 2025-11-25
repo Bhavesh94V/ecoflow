@@ -1,0 +1,213 @@
+// Prisma Schema for EcoSmart
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Enums
+enum UserRole {
+  citizen
+  admin
+}
+
+enum BinStatus {
+  normal
+  half
+  overflow
+}
+
+enum RouteStatus {
+  active
+  scheduled
+  completed
+}
+
+enum CollectorStatus {
+  active
+  on_break
+  off_duty
+}
+
+enum PickupStatus {
+  requested
+  assigned
+  on_the_way
+  completed
+}
+
+enum ComplaintPriority {
+  high
+  medium
+  low
+}
+
+enum ComplaintStatus {
+  pending
+  in_progress
+  resolved
+  rejected
+}
+
+// Models
+model User {
+  id            Int       @id @default(autoincrement())
+  name          String
+  email         String    @unique
+  password      String
+  role          UserRole  @default(citizen)
+  phone         String?
+  address       String?
+  reward_points Int       @default(0)
+  created_at    DateTime  @default(now())
+  updated_at    DateTime  @updatedAt
+
+  // Relations
+  pickups       Pickup[]
+  complaints    Complaint[] @relation("UserComplaints")
+
+  @@map("users")
+}
+
+model Bin {
+  id            Int        @id @default(autoincrement())
+  bin_id        String     @unique
+  location_name String
+  area          String
+  latitude      Float
+  longitude     Float
+  status        BinStatus  @default(normal)
+  fill_level    Int        @default(0)
+  temperature   Float?
+  weight        Float?
+  gas_level     Float?
+  humidity      Float?
+  battery       Int?
+  last_update   DateTime   @default(now())
+  created_at    DateTime   @default(now())
+  updated_at    DateTime   @updatedAt
+
+  // Relations
+  iot_logs      IoTLog[]
+  route_bins    RouteBin[]
+  pickups       Pickup[]
+  complaints    Complaint[]
+
+  @@map("bins")
+}
+
+model IoTLog {
+  id          Int      @id @default(autoincrement())
+  bin_id      Int
+  fill_level  Int
+  temperature Float?
+  weight      Float?
+  gas_level   Float?
+  humidity    Float?
+  battery     Int?
+  timestamp   DateTime @default(now())
+
+  // Relations
+  bin         Bin      @relation(fields: [bin_id], references: [id], onDelete: Cascade)
+
+  @@map("iot_logs")
+}
+
+model Route {
+  id           Int          @id @default(autoincrement())
+  route_id     String       @unique
+  name         String
+  driver_id    Int?
+  distance     Float?
+  duration     Int?         // in minutes
+  efficiency   Float?
+  status       RouteStatus  @default(scheduled)
+  fuel_saved   Float?
+  scheduled_at DateTime?
+  created_at   DateTime     @default(now())
+  updated_at   DateTime     @updatedAt
+
+  // Relations
+  driver       Collector?   @relation(fields: [driver_id], references: [id])
+  route_bins   RouteBin[]
+
+  @@map("routes")
+}
+
+model RouteBin {
+  id        Int   @id @default(autoincrement())
+  route_id  Int
+  bin_id    Int
+  sequence  Int   @default(0)
+
+  // Relations
+  route     Route @relation(fields: [route_id], references: [id], onDelete: Cascade)
+  bin       Bin   @relation(fields: [bin_id], references: [id], onDelete: Cascade)
+
+  @@unique([route_id, bin_id])
+  @@map("route_bins")
+}
+
+model Collector {
+  id               Int             @id @default(autoincrement())
+  name             String
+  phone            String
+  email            String          @unique
+  vehicle_number   String
+  zone             String
+  rating           Float           @default(5.0)
+  status           CollectorStatus @default(active)
+  shifts_completed Int             @default(0)
+  created_at       DateTime        @default(now())
+  updated_at       DateTime        @updatedAt
+
+  // Relations
+  routes           Route[]
+  pickups          Pickup[]
+  complaints       Complaint[]     @relation("AssignedComplaints")
+
+  @@map("collectors")
+}
+
+model Pickup {
+  id             Int          @id @default(autoincrement())
+  user_id        Int
+  bin_id         Int?
+  status         PickupStatus @default(requested)
+  driver_id      Int?
+  scheduled_time DateTime?
+  completed_time DateTime?
+  created_at     DateTime     @default(now())
+  updated_at     DateTime     @updatedAt
+
+  // Relations
+  user           User         @relation(fields: [user_id], references: [id])
+  bin            Bin?         @relation(fields: [bin_id], references: [id])
+  driver         Collector?   @relation(fields: [driver_id], references: [id])
+
+  @@map("pickups")
+}
+
+model Complaint {
+  id          Int               @id @default(autoincrement())
+  user_id     Int
+  bin_id      Int?
+  message     String
+  priority    ComplaintPriority @default(medium)
+  status      ComplaintStatus   @default(pending)
+  assigned_to Int?
+  resolved_at DateTime?
+  created_at  DateTime          @default(now())
+  updated_at  DateTime          @updatedAt
+
+  // Relations
+  user        User              @relation("UserComplaints", fields: [user_id], references: [id])
+  bin         Bin?              @relation(fields: [bin_id], references: [id])
+  assignee    Collector?        @relation("AssignedComplaints", fields: [assigned_to], references: [id])
+
+  @@map("complaints")
+}

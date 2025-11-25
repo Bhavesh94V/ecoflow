@@ -1,0 +1,369 @@
+{
+  "info": {
+    "name": "EcoSmart API",
+    "description": "Smart Waste Management System API Collection",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:5000/api"
+    },
+    {
+      "key": "adminToken",
+      "value": ""
+    },
+    {
+      "key": "citizenToken",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Register Citizen",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/auth/register",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Test User\",\n  \"email\": \"test@example.com\",\n  \"password\": \"password123\",\n  \"phone\": \"+1234567890\",\n  \"address\": \"123 Test Street\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Login Admin",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/auth/login",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@ecosmart.com\",\n  \"password\": \"EcoSmart@Admin#2025!Secure\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Login Citizen",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/auth/login",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"john.doe@example.com\",\n  \"password\": \"password123\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Get Profile",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
+            "url": "{{baseUrl}}/auth/profile"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Citizen",
+      "item": [
+        {
+          "name": "Get Nearby Bins",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{citizenToken}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/citizen/bins?latitude=28.6139&longitude=77.2090",
+              "query": [{ "key": "latitude", "value": "28.6139" }, { "key": "longitude", "value": "77.2090" }]
+            }
+          }
+        },
+        {
+          "name": "Get Rewards",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{citizenToken}}" }],
+            "url": "{{baseUrl}}/citizen/rewards"
+          }
+        },
+        {
+          "name": "Request Pickup",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{citizenToken}}" }
+            ],
+            "url": "{{baseUrl}}/citizen/pickup",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"bin_id\": 1,\n  \"scheduled_time\": \"2025-11-20T10:00:00Z\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Get Pickup Status",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{citizenToken}}" }],
+            "url": "{{baseUrl}}/citizen/pickup-status"
+          }
+        },
+        {
+          "name": "File Complaint",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{citizenToken}}" }
+            ],
+            "url": "{{baseUrl}}/citizen/complaint",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message\": \"Bin is overflowing at Market Street for 2 days\",\n  \"bin_id\": 2,\n  \"priority\": \"high\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Get My Complaints",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{citizenToken}}" }],
+            "url": "{{baseUrl}}/citizen/complaints"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin - Bins",
+      "item": [
+        {
+          "name": "Get All Bins",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/admin/bins?page=1&limit=20",
+              "query": [{ "key": "page", "value": "1" }, { "key": "limit", "value": "20" }]
+            }
+          }
+        },
+        {
+          "name": "Get Bin by ID",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
+            "url": "{{baseUrl}}/admin/bins/1"
+          }
+        },
+        {
+          "name": "Create Bin",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+            ],
+            "url": "{{baseUrl}}/admin/bins",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"bin_id\": \"BIN-006\",\n  \"location_name\": \"New Location Test\",\n  \"area\": \"Test Zone\",\n  \"latitude\": 28.6200,\n  \"longitude\": 77.2100\n}"
+            }
+          }
+        },
+        {
+          "name": "Update Bin",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+            ],
+            "url": "{{baseUrl}}/admin/bins/1",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"location_name\": \"Updated Location Name\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Delete Bin",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
+            "url": "{{baseUrl}}/admin/bins/6"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin - Collectors",
+      "item": [
+        {
+          "name": "Get All Collectors",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
+            "url": "{{baseUrl}}/admin/collectors"
+          }
+        },
+        {
+          "name": "Create Collector",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+            ],
+            "url": "{{baseUrl}}/admin/collectors",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"New Collector\",\n  \"phone\": \"+1234567999\",\n  \"email\": \"new.collector@ecosmart.com\",\n  \"vehicle_number\": \"WM-9999\",\n  \"zone\": \"South Zone\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Update Collector",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+            ],
+            "url": "{{baseUrl}}/admin/collectors/1",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"on_break\"\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin - Routes",
+      "item": [
+        {
+          "name": "Get All Routes",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
+            "url": "{{baseUrl}}/admin/routes"
+          }
+        },
+        {
+          "name": "Create Route",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+            ],
+            "url": "{{baseUrl}}/admin/routes",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"New Test Route\",\n  \"driver_id\": 1,\n  \"bin_ids\": [1, 2, 3]\n}"
+            }
+          }
+        },
+        {
+          "name": "Assign Bin to Route",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+            ],
+            "url": "{{baseUrl}}/admin/routes/assign-bin",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"route_id\": 1,\n  \"bin_id\": 4,\n  \"sequence\": 5\n}"
+            }
+          }
+        },
+        {
+          "name": "Optimize Routes (AI)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
+            "url": "{{baseUrl}}/admin/routes/optimize"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin - Complaints",
+      "item": [
+        {
+          "name": "Get All Complaints",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
+            "url": "{{baseUrl}}/admin/complaints"
+          }
+        },
+        {
+          "name": "Assign Complaint",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+            ],
+            "url": "{{baseUrl}}/admin/complaints/assign",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"complaint_id\": 1,\n  \"collector_id\": 2\n}"
+            }
+          }
+        },
+        {
+          "name": "Resolve Complaint",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+            ],
+            "url": "{{baseUrl}}/admin/complaints/resolve",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"complaint_id\": 1\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "IoT",
+      "item": [
+        {
+          "name": "Send IoT Update",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/iot/update",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"bin_id\": \"BIN-001\",\n  \"fill_level\": 45,\n  \"temperature\": 25.5,\n  \"weight\": 52.3,\n  \"gas_level\": 15,\n  \"humidity\": 60,\n  \"battery\": 80\n}"
+            }
+          }
+        },
+        {
+          "name": "Get IoT History",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/iot/history/1?limit=50",
+              "query": [{ "key": "limit", "value": "50" }]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
