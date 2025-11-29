@@ -18,7 +18,7 @@ import {
   Loader2,
 } from "lucide-react"
 import { LineChart, Line, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { useToast } from "@/hooks/use-toast"
 
 interface SensorData {
@@ -46,15 +46,14 @@ export default function AdminIoTData() {
     criticalAlerts: "0",
   })
   const [isLoading, setIsLoading] = useState(true)
+  const [isRefreshing, setIsRefreshing] = useState(false)
+  const pollIntervalRef = useRef<NodeJS.Timeout | null>(null)
 
-  useEffect(() => {
-    fetchIoTData()
-  }, [])
-
-  const fetchIoTData = async () => {
+  const fetchIoTData = async (showLoading = true) => {
     try {
-      setIsLoading(true)
-      const token = localStorage.getItem("token")
+      if (showLoading) setIsLoading(true)
+
+      const token = localStorage.getItem("ecosmart_token")
       const headers = {
         Authorization: `Bearer ${token}`,
         "Content-Type": "application/json",
@@ -92,12 +91,30 @@ export default function AdminIoTData() {
         setTemperatureHistory(tempData.data || [])
       }
     } catch (error) {
-      console.error("Error fetching IoT data:", error)
-      toast({ title: "Error", description: "Failed to fetch IoT data", variant: "destructive" })
+      console.error("[v0] Error fetching IoT data:", error)
+      if (showLoading) {
+        toast({ title: "Error", description: "Failed to fetch IoT data", variant: "destructive" })
+      }
     } finally {
-      setIsLoading(false)
+      if (showLoading) setIsLoading(false)
+      setIsRefreshing(false)
     }
   }
+
+  useEffect(() => {
+    fetchIoTData(true)
+
+    // Poll every 20 seconds
+    pollIntervalRef.current = setInterval(() => {
+      fetchIoTData(false)
+    }, 20000)
+
+    return () => {
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current)
+      }
+    }
+  }, [])
 
   const getSignalColor = (signal: string) => {
     switch (signal) {
@@ -118,6 +135,27 @@ export default function AdminIoTData() {
     { label: "Avg Response Time", value: metrics.avgResponseTime, icon: TrendingUp, color: "info", change: "-0.3s" },
     { label: "Critical Alerts", value: metrics.criticalAlerts, icon: AlertTriangle, color: "warning", change: "-5" },
   ]
+
+  const handleExportData = () => {
+    try {
+      const data = {
+        sensorData,
+        fillLevelHistory,
+        temperatureHistory,
+        timestamp: new Date().toISOString(),
+      }
+      const dataStr = JSON.stringify(data, null, 2)
+      const dataBlob = new Blob([dataStr], { type: "application/json" })
+      const url = URL.createObjectURL(dataBlob)
+      const link = document.createElement("a")
+      link.href = url
+      link.download = `iot-data-${new Date().toISOString().split("T")[0]}.json`
+      link.click()
+      toast({ title: "Success", description: "IoT data exported successfully" })
+    } catch (error) {
+      toast({ title: "Error", description: "Failed to export data", variant: "destructive" })
+    }
+  }
 
   if (isLoading) {
     return (
@@ -142,12 +180,21 @@ export default function AdminIoTData() {
             <p className="text-muted-foreground">Real-time sensor data and device monitoring</p>
           </div>
           <div className="flex gap-3">
-            <Button variant="outline" size="sm" className="gap-2 bg-transparent">
+            <Button variant="outline" size="sm" className="gap-2 bg-transparent" onClick={handleExportData}>
               <Download className="w-4 h-4" />
               Export Data
             </Button>
-            <Button variant="hero" size="sm" className="gap-2" onClick={fetchIoTData}>
-              <RefreshCw className="w-4 h-4" />
+            <Button
+              variant="hero"
+              size="sm"
+              className="gap-2"
+              onClick={() => {
+                setIsRefreshing(true)
+                fetchIoTData(false)
+              }}
+              disabled={isRefreshing}
+            >
+              <RefreshCw className={`w-4 h-4 ${isRefreshing ? "animate-spin" : ""}`} />
               Refresh
             </Button>
           </div>

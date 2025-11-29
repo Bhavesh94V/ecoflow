@@ -370,7 +370,7 @@ export const complaintsApi = {
     area: string
     priority?: string
   }): Promise<{ success: boolean; data: Complaint }> => {
-    return apiRequest("/complaints", {
+    return apiRequest("/citizen/complaint", {
       method: "POST",
       body: JSON.stringify(complaintData),
     })
@@ -395,7 +395,53 @@ export const complaintsApi = {
   },
 
   getMyCitizen: async (): Promise<{ success: boolean; data: Complaint[] }> => {
-    return apiRequest("/complaints/my")
+    return apiRequest("/citizen/complaints/my")
+  },
+}
+
+// Pickup Requests API
+export const pickupApi = {
+  getAll: async (params?: {
+    status?: string
+    page?: number
+    limit?: number
+  }): Promise<{ success: boolean; data: PickupRequest[]; pagination: any }> => {
+    const queryParams = new URLSearchParams()
+    if (params?.status) queryParams.append("status", params.status)
+    if (params?.page) queryParams.append("page", params.page.toString())
+    if (params?.limit) queryParams.append("limit", params.limit.toString())
+
+    return apiRequest(`/citizen/pickup-status?${queryParams.toString()}`)
+  },
+
+  create: async (pickupData: {
+    address: string
+    wasteType: string
+    notes?: string
+    scheduledDate: string
+  }): Promise<{ success: boolean; data: PickupRequest }> => {
+    return apiRequest("/citizen/pickup", {
+      method: "POST",
+      body: JSON.stringify(pickupData),
+    })
+  },
+
+  getMy: async (): Promise<{ success: boolean; data: PickupRequest[] }> => {
+    return apiRequest("/citizen/pickup-status")
+  },
+
+  updateStatus: async (id: string, status: string): Promise<{ success: boolean; data: PickupRequest }> => {
+    return apiRequest(`/pickup/${id}/status`, {
+      method: "PATCH",
+      body: JSON.stringify({ status }),
+    })
+  },
+
+  assign: async (id: string, collectorId: string): Promise<{ success: boolean; data: PickupRequest }> => {
+    return apiRequest(`/pickup/${id}/assign`, {
+      method: "POST",
+      body: JSON.stringify({ collectorId }),
+    })
   },
 }
 
@@ -444,52 +490,6 @@ export const routesApi = {
     return apiRequest("/routes/optimize", {
       method: "POST",
       body: JSON.stringify({ binIds }),
-    })
-  },
-}
-
-// Pickup Requests API
-export const pickupApi = {
-  getAll: async (params?: {
-    status?: string
-    page?: number
-    limit?: number
-  }): Promise<{ success: boolean; data: PickupRequest[]; pagination: any }> => {
-    const queryParams = new URLSearchParams()
-    if (params?.status) queryParams.append("status", params.status)
-    if (params?.page) queryParams.append("page", params.page.toString())
-    if (params?.limit) queryParams.append("limit", params.limit.toString())
-
-    return apiRequest(`/pickup?${queryParams.toString()}`)
-  },
-
-  create: async (pickupData: {
-    address: string
-    wasteType: string
-    notes?: string
-    scheduledDate: string
-  }): Promise<{ success: boolean; data: PickupRequest }> => {
-    return apiRequest("/pickup", {
-      method: "POST",
-      body: JSON.stringify(pickupData),
-    })
-  },
-
-  getMy: async (): Promise<{ success: boolean; data: PickupRequest[] }> => {
-    return apiRequest("/pickup/my")
-  },
-
-  updateStatus: async (id: string, status: string): Promise<{ success: boolean; data: PickupRequest }> => {
-    return apiRequest(`/pickup/${id}/status`, {
-      method: "PATCH",
-      body: JSON.stringify({ status }),
-    })
-  },
-
-  assign: async (id: string, collectorId: string): Promise<{ success: boolean; data: PickupRequest }> => {
-    return apiRequest(`/pickup/${id}/assign`, {
-      method: "POST",
-      body: JSON.stringify({ collectorId }),
     })
   },
 }

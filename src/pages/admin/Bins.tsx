@@ -29,7 +29,7 @@ import {
   Loader2,
   RefreshCw,
 } from "lucide-react"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { useNavigate } from "react-router-dom"
 import { useToast } from "@/hooks/use-toast"
 import { useAuth } from "@/context/AuthContext"
@@ -44,7 +44,9 @@ export default function AdminBins() {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
   const [bins, setBins] = useState<Bin[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [isRefreshing, setIsRefreshing] = useState(false)
   const [isAdding, setIsAdding] = useState(false)
+  const pollIntervalRef = useRef<NodeJS.Timeout | null>(null)
 
   // Form state for adding new bin
   const [newBin, setNewBin] = useState({
@@ -62,8 +64,9 @@ export default function AdminBins() {
     }
   }, [authLoading, isAuthenticated, user, navigate])
 
-  const fetchBins = async () => {
-    setIsLoading(true)
+  const fetchBins = async (showLoading = true) => {
+    if (showLoading) setIsLoading(true)
+
     try {
       const response = await binsApi.getAll({ limit: 100 })
       if (response.success) {
@@ -73,23 +76,43 @@ export default function AdminBins() {
         setBins([])
       }
     } catch (error) {
-      console.error("Error fetching bins:", error)
+      console.error("[v0] Error fetching bins:", error)
       setBins([])
-      toast({
-        title: "Error",
-        description: "Failed to load bins data.",
-        variant: "destructive",
-      })
+      if (showLoading) {
+        toast({
+          title: "Error",
+          description: "Failed to load bins data.",
+          variant: "destructive",
+        })
+      }
     } finally {
-      setIsLoading(false)
+      if (showLoading) setIsLoading(false)
+      setIsRefreshing(false)
     }
   }
 
   useEffect(() => {
-    if (isAuthenticated && user?.role === "admin") {
-      fetchBins()
+    if (!isAuthenticated || user?.role !== "admin") return
+
+    // Initial fetch
+    fetchBins(true)
+
+    // Poll every 15 seconds
+    pollIntervalRef.current = setInterval(() => {
+      fetchBins(false)
+    }, 15000)
+
+    return () => {
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current)
+      }
     }
   }, [isAuthenticated, user])
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true)
+    await fetchBins(false)
+  }
 
   const getStatusColor = (fillLevel: number) => {
     if (fillLevel >= 80) return "danger"
@@ -179,8 +202,8 @@ export default function AdminBins() {
             <p className="text-muted-foreground">Monitor and manage all smart waste bins</p>
           </div>
           <div className="flex gap-3">
-            <Button variant="outline" onClick={fetchBins}>
-              <RefreshCw className="w-4 h-4 mr-2" />
+            <Button variant="outline" onClick={handleRefresh} disabled={isRefreshing}>
+              <RefreshCw className={`w-4 h-4 mr-2 ${isRefreshing ? "animate-spin" : ""}`} />
               Refresh
             </Button>
             <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>

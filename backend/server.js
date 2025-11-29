@@ -195,48 +195,11 @@ app.get("/api/complaints", async (req, res, next) => {
   }
 })
 
-app.get("/api/pickup/my", async (req, res, next) => {
-  try {
-    const token = req.headers.authorization?.split(" ")[1]
-    if (!token) {
-      return res.status(401).json({ success: false, message: "Unauthorized" })
-    }
-
-    const userId = req.user?.id || req.query.userId
-    if (!userId) {
-      return res.status(401).json({ success: false, message: "User ID required" })
-    }
-
-    const pickups = await prisma.pickup.findMany({
-      where: { user_id: userId },
-      include: {
-        bin: { select: { location_name: true, area: true } },
-        driver: { select: { name: true } },
-      },
-      orderBy: { created_at: "desc" },
-      take: 10,
-    })
-
-    const mappedPickups = pickups.map((p) => ({
-      id: p.id,
-      status: p.status,
-      wasteType: p.id % 2 === 0 ? "recyclable" : "general",
-      address: p.bin?.location_name || "Your Location",
-      scheduledDate: p.scheduled_time,
-      completedDate: p.completed_time,
-    }))
-
-    res.json({ success: true, data: mappedPickups })
-  } catch (error) {
-    next(error)
-  }
-})
-
 app.use("/api/admin/bins", adminBinRoutes)
 app.use("/api/admin/collectors", adminCollectorRoutes)
 app.use("/api/admin/complaints", adminComplaintRoutes)
 app.use("/api/admin/routes", adminRouteRoutes)
-app.use("/api/admin/iot", adminIotRoutes) // Added admin IoT routes
+app.use("/api/admin/iot", adminIotRoutes)
 app.use("/api/admin/alerts", alertsRoutes)
 app.use("/api/iot", iotRoutes)
 

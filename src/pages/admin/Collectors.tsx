@@ -30,7 +30,7 @@ import {
   Loader2,
   RefreshCw,
 } from "lucide-react"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { useNavigate } from "react-router-dom"
 import { useToast } from "@/hooks/use-toast"
 import { useAuth } from "@/context/AuthContext"
@@ -45,7 +45,9 @@ export default function AdminCollectors() {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
   const [collectors, setCollectors] = useState<Collector[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [isRefreshing, setIsRefreshing] = useState(false)
   const [isAdding, setIsAdding] = useState(false)
+  const pollIntervalRef = useRef<NodeJS.Timeout | null>(null)
 
   // Form state for adding new collector
   const [newCollector, setNewCollector] = useState({
@@ -63,28 +65,43 @@ export default function AdminCollectors() {
     }
   }, [authLoading, isAuthenticated, user, navigate])
 
-  const fetchCollectors = async () => {
-    setIsLoading(true)
+  const fetchCollectors = async (showLoading = true) => {
+    if (showLoading) setIsLoading(true)
+
     try {
       const response = await collectorsApi.getAll({ limit: 100 })
       if (response.success) {
         setCollectors(response.data)
       }
     } catch (error) {
-      console.error("Error fetching collectors:", error)
-      toast({
-        title: "Error",
-        description: "Failed to load collectors data.",
-        variant: "destructive",
-      })
+      console.error("[v0] Error fetching collectors:", error)
+      if (showLoading) {
+        toast({
+          title: "Error",
+          description: "Failed to load collectors data.",
+          variant: "destructive",
+        })
+      }
     } finally {
-      setIsLoading(false)
+      if (showLoading) setIsLoading(false)
+      setIsRefreshing(false)
     }
   }
 
   useEffect(() => {
-    if (isAuthenticated && user?.role === "admin") {
-      fetchCollectors()
+    if (!isAuthenticated || user?.role !== "admin") return
+
+    fetchCollectors(true)
+
+    // Poll every 15 seconds
+    pollIntervalRef.current = setInterval(() => {
+      fetchCollectors(false)
+    }, 15000)
+
+    return () => {
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current)
+      }
     }
   }, [isAuthenticated, user])
 
@@ -177,8 +194,15 @@ export default function AdminCollectors() {
             <p className="text-muted-foreground">Manage collection staff and vehicle assignments</p>
           </div>
           <div className="flex gap-3">
-            <Button variant="outline" onClick={fetchCollectors}>
-              <RefreshCw className="w-4 h-4 mr-2" />
+            <Button
+              variant="outline"
+              onClick={() => {
+                setIsRefreshing(true)
+                fetchCollectors(false)
+              }}
+              disabled={isRefreshing}
+            >
+              <RefreshCw className={`w-4 h-4 mr-2 ${isRefreshing ? "animate-spin" : ""}`} />
               Refresh
             </Button>
             <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>

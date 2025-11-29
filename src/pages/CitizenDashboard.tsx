@@ -22,8 +22,9 @@ import {
   Award,
   Loader2,
   Plus,
+  RefreshCw,
 } from "lucide-react"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { useToast } from "@/hooks/use-toast"
 import { useNavigate } from "react-router-dom"
 import { useAuth } from "@/context/AuthContext"
@@ -63,10 +64,12 @@ export default function CitizenDashboard() {
     activeComplaints: 0,
   })
   const [isLoading, setIsLoading] = useState(true)
+  const [isRefreshing, setIsRefreshing] = useState(false)
   const [isRequestingPickup, setIsRequestingPickup] = useState(false)
   const [isFilingComplaint, setIsFilingComplaint] = useState(false)
   const [pickupDialogOpen, setPickupDialogOpen] = useState(false)
   const [complaintDialogOpen, setComplaintDialogOpen] = useState(false)
+  const pollIntervalRef = useRef<NodeJS.Timeout | null>(null)
 
   // Pickup form state
   const [pickupForm, setPickupForm] = useState({
@@ -90,76 +93,95 @@ export default function CitizenDashboard() {
     }
   }, [authLoading, isAuthenticated, navigate])
 
-  useEffect(() => {
-    const fetchData = async () => {
-      if (!isAuthenticated) return
+  // Polling function for real-time updates
+  const fetchData = async (showLoading = true) => {
+    if (!isAuthenticated) return
 
-      setIsLoading(true)
+    if (showLoading) setIsLoading(true)
+
+    try {
+      // Fetch nearby bins
+      const binsResponse = await binsApi.getAll({ limit: 5 })
+      if (binsResponse.success) {
+        const binsData = Array.isArray(binsResponse.data) ? binsResponse.data : []
+        setNearbyBins(binsData)
+      } else {
+        setNearbyBins([])
+      }
+
+      // Fetch my pickup requests
       try {
-        // Fetch nearby bins
-        const binsResponse = await binsApi.getAll({ limit: 5 })
-        if (binsResponse.success) {
-          const binsData = Array.isArray(binsResponse.data) ? binsResponse.data : []
-          setNearbyBins(binsData)
+        const pickupsResponse = await pickupApi.getMy()
+        if (pickupsResponse?.success && Array.isArray(pickupsResponse.data)) {
+          setPickupRequests(pickupsResponse.data)
         } else {
-          setNearbyBins([])
-        }
-
-        // Fetch my pickup requests
-        try {
-          const pickupsResponse = await pickupApi.getMy()
-          if (pickupsResponse?.success && Array.isArray(pickupsResponse.data)) {
-            setPickupRequests(pickupsResponse.data)
-          } else {
-            setPickupRequests([])
-          }
-        } catch (error) {
-          console.error("Pickups fetch error:", error)
           setPickupRequests([])
         }
+      } catch (error) {
+        console.error("[v0] Pickups fetch error:", error)
+        setPickupRequests([])
+      }
 
-        // Fetch my complaints
-        try {
-          const complaintsResponse = await complaintsApi.getMyCitizen()
-          if (complaintsResponse?.success && Array.isArray(complaintsResponse.data)) {
-            setComplaints(complaintsResponse.data)
-          } else {
-            setComplaints([])
-          }
-        } catch (error) {
-          console.error("Complaints fetch error:", error)
+      // Fetch my complaints
+      try {
+        const complaintsResponse = await complaintsApi.getMyCitizen()
+        if (complaintsResponse?.success && Array.isArray(complaintsResponse.data)) {
+          setComplaints(complaintsResponse.data)
+        } else {
           setComplaints([])
         }
-
-        // Fetch citizen stats
-        const statsResponse = await dashboardApi.getCitizenStats()
-        if (statsResponse?.success && statsResponse.data) {
-          setStats(statsResponse.data)
-        } else {
-          setStats({
-            rewardPoints: 0,
-            pickupsCompleted: 0,
-            recyclingRate: 0,
-            activeComplaints: 0,
-          })
-        }
       } catch (error) {
-        console.error("Error fetching data:", error)
-        toast({
-          title: "Error",
-          description: "Failed to load dashboard data. Please refresh.",
-          variant: "destructive",
-        })
-        setNearbyBins([])
-        setPickupRequests([])
+        console.error("[v0] Complaints fetch error:", error)
         setComplaints([])
-      } finally {
-        setIsLoading(false)
+      }
+
+      // Fetch citizen stats
+      const statsResponse = await dashboardApi.getCitizenStats()
+      if (statsResponse?.success && statsResponse.data) {
+        setStats(statsResponse.data)
+      } else {
+        setStats({
+          rewardPoints: 0,
+          pickupsCompleted: 0,
+          recyclingRate: 0,
+          activeComplaints: 0,
+        })
+      }
+    } catch (error) {
+      console.error("[v0] Error fetching data:", error)
+      toast({
+        title: "Error",
+        description: "Failed to load dashboard data.",
+        variant: "destructive",
+      })
+    } finally {
+      if (showLoading) setIsLoading(false)
+      setIsRefreshing(false)
+    }
+  }
+
+  useEffect(() => {
+    if (!isAuthenticated) return
+
+    // Initial fetch
+    fetchData(true)
+
+    // Poll every 10 seconds for real-time updates
+    pollIntervalRef.current = setInterval(() => {
+      fetchData(false)
+    }, 10000)
+
+    return () => {
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current)
       }
     }
-
-    fetchData()
   }, [isAuthenticated, toast])
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true)
+    await fetchData(false)
+  }
 
   const handleRequestPickup = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -181,6 +203,8 @@ export default function CitizenDashboard() {
         setPickupRequests((prev) => [response.data, ...prev])
         setPickupDialogOpen(false)
         setPickupForm({ address: "", wasteType: "general", notes: "", scheduledDate: "" })
+        // Refresh data after successful request
+        await fetchData(false)
       }
     } catch (error: any) {
       toast({
@@ -213,6 +237,8 @@ export default function CitizenDashboard() {
         setComplaints((prev) => [response.data, ...prev])
         setComplaintDialogOpen(false)
         setComplaintForm({ title: "", description: "", location: "", area: "" })
+        // Refresh data after successful complaint
+        await fetchData(false)
       }
     } catch (error: any) {
       toast({
@@ -269,10 +295,16 @@ export default function CitizenDashboard() {
 
       <div className="pt-24 pb-12 px-4">
         <div className="container mx-auto">
-          {/* Welcome Section */}
-          <div className="mb-8 animate-fade-in">
-            <h1 className="text-3xl md:text-4xl font-bold mb-2">Welcome back, {user?.name || "Citizen"}!</h1>
-            <p className="text-muted-foreground">Manage your waste, track pickups, and earn rewards</p>
+          {/* Welcome Section with Refresh Button */}
+          <div className="mb-8 animate-fade-in flex justify-between items-center">
+            <div>
+              <h1 className="text-3xl md:text-4xl font-bold mb-2">Welcome back, {user?.name || "Citizen"}!</h1>
+              <p className="text-muted-foreground">Manage your waste, track pickups, and earn rewards</p>
+            </div>
+            <Button variant="outline" size="sm" onClick={handleRefresh} disabled={isRefreshing}>
+              <RefreshCw className={`w-4 h-4 mr-2 ${isRefreshing ? "animate-spin" : ""}`} />
+              Refresh
+            </Button>
           </div>
 
           {/* Quick Stats */}

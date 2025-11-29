@@ -17,8 +17,9 @@ import {
   RefreshCw,
   Loader2,
 } from "lucide-react"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { useToast } from "@/hooks/use-toast"
+import { routesApi, type Route } from "@/lib/api"
 
 interface RouteData {
   id: string
@@ -37,43 +38,57 @@ export default function AdminRoutes() {
   const { toast } = useToast()
   const [routes, setRoutes] = useState<RouteData[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [isRefreshing, setIsRefreshing] = useState(false)
   const [stats, setStats] = useState({
     totalRoutesToday: 0,
     activeVehicles: 0,
     avgEfficiency: 0,
     fuelSaved: "0L",
   })
+  const pollIntervalRef = useRef<NodeJS.Timeout | null>(null)
 
-  useEffect(() => {
-    fetchRoutes()
-  }, [])
-
-  const fetchRoutes = async () => {
+  const fetchRoutes = async (showLoading = true) => {
     try {
-      setIsLoading(true)
-      const token = localStorage.getItem("token")
-      const response = await fetch("http://localhost:5000/api/admin/routes", {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-      })
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
-      }
-      const data = await response.json()
+      if (showLoading) setIsLoading(true)
 
-      if (data.success) {
-        setRoutes(data.data || [])
-        setStats(data.stats || {})
+      const response = await routesApi.getAll({ limit: 100 })
+      if (response.success) {
+        setRoutes(response.data || [])
+        // Calculate stats from routes data
+        const activeCount = response.data?.filter((r: Route) => r.status === "active").length || 0
+        setStats({
+          totalRoutesToday: response.data?.length || 0,
+          activeVehicles: activeCount,
+          avgEfficiency: Math.round(
+            (response.data?.reduce((sum: number, r: Route) => sum + (r.efficiency || 85), 0) || 0) /
+            (response.data?.length || 1),
+          ),
+          fuelSaved: `${Math.round((response.data?.reduce((sum: number, r: Route) => sum + (r.fuelSaved || 10), 0) || 0) / 100) * 10}L`,
+        })
       }
     } catch (error) {
-      console.error("Error fetching routes:", error)
+      console.error("[v0] Error fetching routes:", error)
       toast({ title: "Error", description: "Failed to fetch routes", variant: "destructive" })
     } finally {
-      setIsLoading(false)
+      if (showLoading) setIsLoading(false)
+      setIsRefreshing(false)
     }
   }
+
+  useEffect(() => {
+    fetchRoutes(true)
+
+    // Poll every 15 seconds
+    pollIntervalRef.current = setInterval(() => {
+      fetchRoutes(false)
+    }, 15000)
+
+    return () => {
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current)
+      }
+    }
+  }, [])
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -118,8 +133,16 @@ export default function AdminRoutes() {
             <p className="text-muted-foreground">AI-powered route planning and vehicle tracking</p>
           </div>
           <div className="flex gap-3">
-            <Button variant="outline" className="gap-2 bg-transparent" onClick={fetchRoutes}>
-              <RefreshCw className="w-4 h-4" />
+            <Button
+              variant="outline"
+              className="gap-2 bg-transparent"
+              onClick={() => {
+                setIsRefreshing(true)
+                fetchRoutes(false)
+              }}
+              disabled={isRefreshing}
+            >
+              <RefreshCw className={`w-4 h-4 ${isRefreshing ? "animate-spin" : ""}`} />
               Refresh
             </Button>
             <Button variant="outline" className="gap-2 bg-transparent">

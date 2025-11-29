@@ -28,7 +28,7 @@ import {
   Loader2,
   RefreshCw,
 } from "lucide-react"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { useNavigate } from "react-router-dom"
 import { useToast } from "@/hooks/use-toast"
 import { useAuth } from "@/context/AuthContext"
@@ -43,8 +43,10 @@ export default function AdminComplaints() {
   const [selectedComplaint, setSelectedComplaint] = useState<Complaint | null>(null)
   const [complaints, setComplaints] = useState<Complaint[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [isRefreshing, setIsRefreshing] = useState(false)
   const [isResolving, setIsResolving] = useState(false)
   const [resolutionNotes, setResolutionNotes] = useState("")
+  const pollIntervalRef = useRef<NodeJS.Timeout | null>(null)
 
   useEffect(() => {
     if (!authLoading && (!isAuthenticated || user?.role !== "admin")) {
@@ -52,8 +54,9 @@ export default function AdminComplaints() {
     }
   }, [authLoading, isAuthenticated, user, navigate])
 
-  const fetchComplaints = async () => {
-    setIsLoading(true)
+  const fetchComplaints = async (showLoading = true) => {
+    if (showLoading) setIsLoading(true)
+
     try {
       const response = await complaintsApi.getAll({ limit: 100 })
       if (response.success) {
@@ -63,21 +66,35 @@ export default function AdminComplaints() {
         setComplaints([])
       }
     } catch (error) {
-      console.error("Error fetching complaints:", error)
+      console.error("[v0] Error fetching complaints:", error)
       setComplaints([])
-      toast({
-        title: "Error",
-        description: "Failed to load complaints data.",
-        variant: "destructive",
-      })
+      if (showLoading) {
+        toast({
+          title: "Error",
+          description: "Failed to load complaints data.",
+          variant: "destructive",
+        })
+      }
     } finally {
-      setIsLoading(false)
+      if (showLoading) setIsLoading(false)
+      setIsRefreshing(false)
     }
   }
 
   useEffect(() => {
-    if (isAuthenticated && user?.role === "admin") {
-      fetchComplaints()
+    if (!isAuthenticated || user?.role !== "admin") return
+
+    fetchComplaints(true)
+
+    // Poll every 15 seconds
+    pollIntervalRef.current = setInterval(() => {
+      fetchComplaints(false)
+    }, 15000)
+
+    return () => {
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current)
+      }
     }
   }, [isAuthenticated, user])
 
@@ -185,8 +202,15 @@ export default function AdminComplaints() {
             <h1 className="text-3xl font-bold mb-2">Complaints Management</h1>
             <p className="text-muted-foreground">Track and resolve citizen complaints</p>
           </div>
-          <Button variant="outline" onClick={fetchComplaints}>
-            <RefreshCw className="w-4 h-4 mr-2" />
+          <Button
+            variant="outline"
+            onClick={() => {
+              setIsRefreshing(true)
+              fetchComplaints(false)
+            }}
+            disabled={isRefreshing}
+          >
+            <RefreshCw className={`w-4 h-4 mr-2 ${isRefreshing ? "animate-spin" : ""}`} />
             Refresh
           </Button>
         </div>
