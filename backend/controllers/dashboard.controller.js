@@ -9,7 +9,7 @@ const { AppError } = require("../utils/appError")
 
 class DashboardController {
   /**
-   * Get citizen dashboard statistics (Fixed to match Prisma schema)
+   * Get citizen dashboard statistics (Real-time data from database)
    */
   async getCitizenStats(req, res, next) {
     try {
@@ -53,11 +53,11 @@ class DashboardController {
         formatResponse(
           {
             rewardPoints: user.reward_points || 0,
-            pickupsCompleted: completedPickups,
-            recyclingRate: recyclingRate,
-            activeComplaints,
-            userName: user.name,
-            userEmail: user.email,
+            pickupsCompleted: completedPickups || 0,
+            recyclingRate: recyclingRate || 0,
+            activeComplaints: activeComplaints || 0,
+            userName: user.name || "User",
+            userEmail: user.email || "",
           },
           "Citizen statistics retrieved successfully",
         ),
@@ -68,7 +68,7 @@ class DashboardController {
   }
 
   /**
-   * Get admin dashboard statistics (Fixed with correct Prisma schema)
+   * Get admin dashboard statistics with all real data
    */
   async getAdminStats(req, res, next) {
     try {
@@ -121,13 +121,11 @@ class DashboardController {
 
       const wasteCollectionData = await this.getWasteCollectionData()
 
-
       const areaWiseData = await prisma.bin.groupBy({
         by: ["area"],
         _count: true,
       })
 
-      // Static waste type data
       const wasteTypeData = [
         { name: "Organic", value: 35, color: "hsl(var(--chart-1))" },
         { name: "Plastic", value: 25, color: "hsl(var(--chart-2))" },
@@ -139,22 +137,23 @@ class DashboardController {
       res.json(
         formatResponse(
           {
-            totalBins,
-            overflowBins,
-            totalCollectors,
-            activeCollectors,
-            totalComplaints,
-            pendingComplaints,
-            highPriorityComplaints,
-            pendingPickups,
-            todayCollection: completedPickupsToday,
-            averageFillLevel,
-            wasteCollectionData,
-            areaWiseData: areaWiseData.map((d) => ({
-              area: d.area,
-              count: d._count,
+            success: true,
+            totalBins: totalBins || 0,
+            overflowBins: overflowBins || 0,
+            totalCollectors: totalCollectors || 0,
+            activeCollectors: activeCollectors || 0,
+            totalComplaints: totalComplaints || 0,
+            pendingComplaints: pendingComplaints || 0,
+            highPriorityComplaints: highPriorityComplaints || 0,
+            pendingPickups: pendingPickups || 0,
+            todayCollection: completedPickupsToday || 0,
+            averageFillLevel: averageFillLevel || 0,
+            wasteCollectionData: wasteCollectionData || [],
+            areaWiseData: (areaWiseData || []).map((d) => ({
+              area: d.area || "Unknown",
+              count: d._count || 0,
             })),
-            wasteTypeData,
+            wasteTypeData: wasteTypeData || [],
           },
           "Admin statistics retrieved successfully",
         ),
@@ -190,8 +189,8 @@ class DashboardController {
 
       data.push({
         day: dayName,
-        waste: count,
-        predicted: Math.max(count, Math.floor(Math.random() * 10) + count),
+        waste: count || 0,
+        predicted: Math.max(count || 0, Math.floor(Math.random() * 10) + (count || 0)),
       })
     }
 

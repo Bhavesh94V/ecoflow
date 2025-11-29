@@ -99,25 +99,49 @@ export default function CitizenDashboard() {
         // Fetch nearby bins
         const binsResponse = await binsApi.getAll({ limit: 5 })
         if (binsResponse.success) {
-          setNearbyBins(binsResponse.data)
+          const binsData = Array.isArray(binsResponse.data) ? binsResponse.data : []
+          setNearbyBins(binsData)
+        } else {
+          setNearbyBins([])
         }
 
         // Fetch my pickup requests
-        const pickupsResponse = await pickupApi.getMy()
-        if (pickupsResponse.success) {
-          setPickupRequests(pickupsResponse.data)
+        try {
+          const pickupsResponse = await pickupApi.getMy()
+          if (pickupsResponse?.success && Array.isArray(pickupsResponse.data)) {
+            setPickupRequests(pickupsResponse.data)
+          } else {
+            setPickupRequests([])
+          }
+        } catch (error) {
+          console.error("Pickups fetch error:", error)
+          setPickupRequests([])
         }
 
         // Fetch my complaints
-        const complaintsResponse = await complaintsApi.getMyCitizen()
-        if (complaintsResponse.success) {
-          setComplaints(complaintsResponse.data)
+        try {
+          const complaintsResponse = await complaintsApi.getMyCitizen()
+          if (complaintsResponse?.success && Array.isArray(complaintsResponse.data)) {
+            setComplaints(complaintsResponse.data)
+          } else {
+            setComplaints([])
+          }
+        } catch (error) {
+          console.error("Complaints fetch error:", error)
+          setComplaints([])
         }
 
         // Fetch citizen stats
         const statsResponse = await dashboardApi.getCitizenStats()
-        if (statsResponse.success) {
+        if (statsResponse?.success && statsResponse.data) {
           setStats(statsResponse.data)
+        } else {
+          setStats({
+            rewardPoints: 0,
+            pickupsCompleted: 0,
+            recyclingRate: 0,
+            activeComplaints: 0,
+          })
         }
       } catch (error) {
         console.error("Error fetching data:", error)
@@ -126,6 +150,9 @@ export default function CitizenDashboard() {
           description: "Failed to load dashboard data. Please refresh.",
           variant: "destructive",
         })
+        setNearbyBins([])
+        setPickupRequests([])
+        setComplaints([])
       } finally {
         setIsLoading(false)
       }

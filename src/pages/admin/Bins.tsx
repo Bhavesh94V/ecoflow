@@ -67,10 +67,14 @@ export default function AdminBins() {
     try {
       const response = await binsApi.getAll({ limit: 100 })
       if (response.success) {
-        setBins(response.data)
+        const binsData = Array.isArray(response.data) ? response.data : []
+        setBins(binsData)
+      } else {
+        setBins([])
       }
     } catch (error) {
       console.error("Error fetching bins:", error)
+      setBins([])
       toast({
         title: "Error",
         description: "Failed to load bins data.",
@@ -146,12 +150,14 @@ export default function AdminBins() {
     }
   }
 
-  const filteredBins = bins.filter(
-    (bin) =>
-      bin.location.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      bin.area.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      bin.binId.toLowerCase().includes(searchQuery.toLowerCase()),
-  )
+  const filteredBins = Array.isArray(bins)
+    ? bins.filter(
+      (bin) =>
+        bin.location?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        bin.area?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        bin.binId?.toLowerCase().includes(searchQuery.toLowerCase()),
+    )
+    : []
 
   if (authLoading || isLoading) {
     return (

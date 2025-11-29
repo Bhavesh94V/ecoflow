@@ -57,10 +57,14 @@ export default function AdminComplaints() {
     try {
       const response = await complaintsApi.getAll({ limit: 100 })
       if (response.success) {
-        setComplaints(response.data)
+        const complaintData = Array.isArray(response.data) ? response.data : []
+        setComplaints(complaintData)
+      } else {
+        setComplaints([])
       }
     } catch (error) {
       console.error("Error fetching complaints:", error)
+      setComplaints([])
       toast({
         title: "Error",
         description: "Failed to load complaints data.",
@@ -154,11 +158,13 @@ export default function AdminComplaints() {
     }
   }
 
-  const filteredComplaints = complaints.filter(
-    (complaint) =>
-      complaint.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      complaint.location.toLowerCase().includes(searchQuery.toLowerCase()),
-  )
+  const filteredComplaints = Array.isArray(complaints)
+    ? complaints.filter(
+      (complaint) =>
+        complaint?.title?.toLowerCase?.()?.includes(searchQuery.toLowerCase()) ||
+        complaint?.location?.toLowerCase?.()?.includes(searchQuery.toLowerCase()),
+    )
+    : []
 
   if (authLoading || isLoading) {
     return (

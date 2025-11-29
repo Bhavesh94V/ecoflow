@@ -11,6 +11,7 @@ const helmet = require("helmet")
 const morgan = require("morgan")
 const swaggerUi = require("swagger-ui-express")
 const cron = require("node-cron")
+const prisma = require("./config/database") // Import Prisma
 
 // Config
 const { PORT, CORS_ORIGIN } = require("./config/env")
@@ -31,6 +32,12 @@ const adminComplaintRoutes = require("./routes/admin.complaint.routes")
 const adminRouteRoutes = require("./routes/admin.route.routes")
 const iotRoutes = require("./routes/iot.routes")
 const alertsRoutes = require("./routes/alerts.routes")
+const binsRoutes = require("./routes/bins.routes") // Import bins routes
+const adminIotRoutes = require("./routes/admin.iot.routes") // Added admin IoT routes
+
+// Controllers
+const collectorController = require("./controllers/collector.controller")
+const complaintController = require("./controllers/complaint.controller")
 
 // Cron Jobs
 const { runAlertCron, runInactiveBinCron } = require("./crons/alertCron")
@@ -104,17 +111,132 @@ if (process.env.NODE_ENV !== "production") {
 // API Routes
 app.use("/api/auth", authRoutes)
 app.use("/api/citizen", citizenRoutes)
-app.use("/api/bins", (req, res, next) => {
-  // Middleware to redirect /api/bins to citizen endpoints
-  req.url = req.url.replace(/^\/api\/bins/, "/api/citizen")
-  next()
-})
-app.use("/api/bins", citizenRoutes)
 app.use("/api/dashboard", dashboardRoutes)
+
+app.use("/api/bins", binsRoutes)
+
+// Public collectors endpoint
+app.get("/api/collectors", async (req, res, next) => {
+  try {
+    const { limit = 100, page = 1, status } = req.query
+    const where = status ? { status } : {}
+
+    const collectors = await prisma.collector.findMany({
+      where,
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        phone: true,
+        status: true,
+        vehicle_number: true,
+        zone: true,
+        rating: true,
+        shifts_completed: true,
+      },
+      skip: (page - 1) * limit,
+      take: Number.parseInt(limit),
+    })
+
+    const total = await prisma.collector.count({ where })
+
+    res.json({
+      success: true,
+      data: collectors || [],
+      pagination: { total, page: Number.parseInt(page), limit: Number.parseInt(limit) },
+    })
+  } catch (error) {
+    next(error)
+  }
+})
+
+// Public complaints endpoint
+app.get("/api/complaints", async (req, res, next) => {
+  try {
+    const { limit = 100, page = 1, status, priority } = req.query
+    const where = {}
+    if (status) where.status = status
+    if (priority) where.priority = priority
+
+    const complaints = await prisma.complaint.findMany({
+      where,
+      include: {
+        user: { select: { name: true, email: true } },
+        bin: { select: { location_name: true, area: true } },
+        assignee: { select: { name: true } },
+      },
+      orderBy: { created_at: "desc" },
+      skip: (page - 1) * limit,
+      take: Number.parseInt(limit),
+    })
+
+    const total = await prisma.complaint.count({ where })
+
+    const mappedComplaints = complaints.map((c) => ({
+      id: c.id,
+      title: `Complaint #${c.id}`,
+      description: c.message,
+      priority: c.priority,
+      status: c.status,
+      createdAt: c.created_at,
+      citizenName: c.user?.name,
+      location: c.bin?.location_name || "Unknown",
+      area: c.bin?.area || "Unknown",
+      assignedCollectorName: c.assignee?.name,
+    }))
+
+    res.json({
+      success: true,
+      data: mappedComplaints || [],
+      pagination: { total, page: Number.parseInt(page), limit: Number.parseInt(limit) },
+    })
+  } catch (error) {
+    next(error)
+  }
+})
+
+app.get("/api/pickup/my", async (req, res, next) => {
+  try {
+    const token = req.headers.authorization?.split(" ")[1]
+    if (!token) {
+      return res.status(401).json({ success: false, message: "Unauthorized" })
+    }
+
+    const userId = req.user?.id || req.query.userId
+    if (!userId) {
+      return res.status(401).json({ success: false, message: "User ID required" })
+    }
+
+    const pickups = await prisma.pickup.findMany({
+      where: { user_id: userId },
+      include: {
+        bin: { select: { location_name: true, area: true } },
+        driver: { select: { name: true } },
+      },
+      orderBy: { created_at: "desc" },
+      take: 10,
+    })
+
+    const mappedPickups = pickups.map((p) => ({
+      id: p.id,
+      status: p.status,
+      wasteType: p.id % 2 === 0 ? "recyclable" : "general",
+      address: p.bin?.location_name || "Your Location",
+      scheduledDate: p.scheduled_time,
+      completedDate: p.completed_time,
+    }))
+
+    res.json({ success: true, data: mappedPickups })
+  } catch (error) {
+    next(error)
+  }
+})
+
 app.use("/api/admin/bins", adminBinRoutes)
 app.use("/api/admin/collectors", adminCollectorRoutes)
 app.use("/api/admin/complaints", adminComplaintRoutes)
 app.use("/api/admin/routes", adminRouteRoutes)
+app.use("/api/admin/iot", adminIotRoutes) // Added admin IoT routes
 app.use("/api/admin/alerts", alertsRoutes)
 app.use("/api/iot", iotRoutes)
 
@@ -133,7 +255,7 @@ io.on("connection", (socket) => {
     // Send initial stats
     try {
       const dashboardController = require("./controllers/dashboard.controller")
-      const stats = await dashboardController.getAdminStats({}, { json: (data) => data }, () => {})
+      const stats = await dashboardController.getAdminStats({}, { json: (data) => data }, () => { })
       socket.emit("dashboard:update", stats.data)
     } catch (error) {
       logger.error("Error sending initial admin stats:", error)
